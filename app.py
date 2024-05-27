@@ -6,6 +6,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
+from typing import List
 
 class PDFChatbot:
     def __init__(self, document_folder='documents', config_file='omniAns.yaml'):
@@ -16,8 +17,7 @@ class PDFChatbot:
         self.load_documents()
 
     def load_documents(self):
-        recipes_glob = os.path.join(self.document_folder, "*.pdf")
-        document_paths = glob.glob(recipes_glob)
+        document_paths = glob.glob(os.path.join(self.document_folder, "*/*.pdf"))
         self.flow = AsyncFlows.from_file(self.config_file).set_vars(
             pdf_filepaths=document_paths,
         )
@@ -34,6 +34,11 @@ class PDFChatbot:
         ])
         return result
 
+    def get_next_folder_number(self):
+        existing_folders = glob.glob(os.path.join(self.document_folder, '*'))
+        existing_numbers = [int(os.path.basename(folder)) for folder in existing_folders if os.path.basename(folder).isdigit()]
+        return max(existing_numbers, default=0) + 1
+
 app = FastAPI()
 chatbot = PDFChatbot()
 templates = Jinja2Templates(directory="templates")
@@ -43,10 +48,16 @@ async def index(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 @app.post("/upload/")
-async def upload_file(file: UploadFile = File(...)):
-    file_location = os.path.join(chatbot.document_folder, file.filename)
-    with open(file_location, "wb+") as file_object:
-        file_object.write(file.file.read())
+async def upload_files(files: List[UploadFile] = File(...)):
+    next_folder_number = chatbot.get_next_folder_number()
+    folder_path = os.path.join(chatbot.document_folder, str(next_folder_number))
+    os.makedirs(folder_path, exist_ok=True)
+
+    for file in files:
+        file_location = os.path.join(folder_path, file.filename)
+        with open(file_location, "wb+") as file_object:
+            file_object.write(file.file.read())
+
     chatbot.load_documents()
     return RedirectResponse(url="/", status_code=303)
 
