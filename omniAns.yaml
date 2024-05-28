@@ -474,4 +474,4 @@ flow:
     text:
         link: essayfinaliser.result   
 
-default_output: essay1stdraft.result 
+default_output: extract_final_essay.result 
