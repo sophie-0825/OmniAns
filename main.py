@@ -1,6 +1,5 @@
 import glob
 import os
-from pathlib import Path
 
 from asyncflows import AsyncFlows
 
@@ -15,6 +14,7 @@ def get_latest_directory(document_folder='documents'):
 async def main():
     # Get the latest directory
     latest_directory = get_latest_directory()
+
     if latest_directory is None:
         print("No directories found.")
         return
@@ -22,6 +22,7 @@ async def main():
     # Load PDFs from the latest directory
     recipes_glob = os.path.join(latest_directory, "*.pdf")
     document_paths = glob.glob(recipes_glob)
+    print("Reading the following PDFs:", document_paths)
     if not document_paths:
         print(f"No PDFs found in {latest_directory}.")
         return

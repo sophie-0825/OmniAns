@@ -16,6 +16,7 @@ class LoadJSON(Action[Inputs, Outputs]):
     name = "load_json"
 
     async def run(self, inputs: Inputs) -> Outputs:
+        print(inputs.json_string)
         try:
             json_object = json.loads(inputs.json_string)
         except json.JSONDecodeError as e:

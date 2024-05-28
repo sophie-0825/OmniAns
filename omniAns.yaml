@@ -1,10 +1,10 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/asynchronous-flows/asyncflows/main/schemas/asyncflows_schema.json
+# yaml-language-server: $schema=schemas/custom_asyncflows_schema.json
 
 default_model:
   model: gpt-4o
-  max_output_tokens: 2000
-  max_prompt_tokens: 8000
-action_timeout: 5000
+  max_output_tokens: 4096
+  max_prompt_tokens: 10000
+action_timeout: 9999999999
 flow:
   insight_analyst:
     action: prompt
@@ -24,7 +24,13 @@ flow:
         
           {{ message }}
 
-          Your colleague has brainstormed a list of sub-questions related to this essay. Take advantage of these and structure your argument. Your output should be a list of paragraphs that include 1) what the paragraph is for 2) what evidence is needed 3) how is the argument developed. Do not generate anything else except the list.
+          Your colleague has brainstormed a list of sub-questions related to this essay. Take advantage of these and structure your argument. Your output should be a list of paragraphs that include:
+
+          1) What the paragraph is for.
+          2) What evidence is needed.
+          3) How is the argument developed. 
+
+          Do not generate anything else except the list.
 
           List of sub-questions to explore
 
@@ -32,7 +38,6 @@ flow:
 
           An Example Output Should be: 
 
-          ``
             [
               {
                   "section": "Introduction",
@@ -88,8 +93,14 @@ flow:
                   "evidence_needed": "Recap of key points discussed in the essay.",
                   "argument_development": "Conclude by emphasizing the overall benefits of digitizing and simulating the physical world while acknowledging the importance of addressing associated challenges."
               }
-              ]
-              ``
+            ]
+            Put the output between <output> and </output> tags.
+
+  extract_outlining:
+    action: extract_xml_tag
+    tag: output
+    text:
+        link: structural_outlining.result  
 
   extract_pdf_texts:
     for: filepath
@@ -97,6 +108,7 @@ flow:
       var: pdf_filepaths
     flow:
       # For each filepath, `extract_pdf_text` extracts text from PDF files
+      # the result is saved as a list in `extract_pdf_texts`
       extractor:
         action: extract_pdf_text
         file:
@@ -112,25 +124,25 @@ flow:
     action: prompt
     prompt:
       - text: |
-          You are professor from Oxford. You are  in charge of revising the first draft of a structure of an essay written by a bright student. The student has not read anything before, so you will pay attention to combining the context into the structure to update a better one. 
+          You are a professor from Oxford. You are in charge of revising the first draft of a structure of an essay written by a bright student. The student has not read anything before, so you will pay attention to combining the context into the structure to update a better one. 
 
           Make sure that nothing other than the new structure is outputed. 
 
-          The question to answer is 
+          The question to answer is: 
 
           {{message}}
 
-          Your student has provided you with 
+          Your student has provided you with the following outlining structure: 
 
-          {{structural_outlining.result}}
+          {{extract_outlining.result}}
 
-          The context you will use to revise & upgrade the structure:
+          The summarised context you will use to revise & upgrade the structure:
 
           {% for pdf_result in extract_pdf_texts %}
             {{pdf_result.summarize.result}}
           {% endfor %}
 
-          Sample Structure:
+          Sample Outlining Structure:
 
           [
               {
@@ -171,11 +183,11 @@ flow:
               }
           ]
 
-          Sample Message:
+          Sample Question:
 
           "Explain the pros and cons practices of citing ancient texts without fully understanding their context or meaning"
 
-          Sample Context:
+          Sample Summarised Context:
 
           **Introduction**
 
@@ -202,6 +214,7 @@ flow:
           * He hopes that his work will contribute to the promotion of peace and stability by providing a clear understanding of the mutual relationship between protection and obedience. 
 
           Sample Output:
+
           [
               {
                   "section": "Introduction",
@@ -246,38 +259,47 @@ flow:
                   "argument_development": "Conclude by emphasizing the importance of understanding the historical and cultural contexts of ancient texts while acknowledging the potential benefits and limitations of citing them without full comprehension. Reinforce Hobbes' contributions to the discussion."
               }
           ]
+          Put the output between <output> and </output> tags.
   
-  get_json_string:
+  extract_restructurer:
+    action: extract_xml_tag
+    tag: output
+    text:
+        link: restructurer.result
+
+  restructurerTojson:
     action: load_json
     json_string: 
-      var: restructurer.result
+      var: extract_restructurer.result
 
   essay_writer: 
     for: para_struct
     in: 
-      link: get_json_string.json_object
+      link: restructurerTojson.json_object
     flow:
         key_gen:
             action: prompt
             prompt:
             - text: |
-                    The paragraph below is a part of a bigger essay, to answer the question {{message}}
+                    The paragraph structure below is a part of a bigger essay, to answer the question {{message}}
 
-                    Paragraph:
+                    Paragraph Structure:
 
                     {{para_struct}}
 
                     For the paragraph, generate a list of keywords that could be used to search up to paragraphs in the PDFs & knowledge base that are relevant to this paragraph. Focus on the evidence needed and how they will be incorporated for a better response.  
 
                     Sample Input: 
+
                     {
-                                    "section": "Role in Education and Training",
-                                    "purpose": "To explore the impact of digitization on education and training.",
-                                    "evidence_needed": "Studies on digital learning tools, training program effectiveness, and educational outcomes.",
-                                    "argument_development": "Highlight how digitization enhances learning experiences, provides access to new educational resources, and improves training efficiency."
-                                }
+                        "section": "Role in Education and Training",
+                        "purpose": "To explore the impact of digitization on education and training.",
+                        "evidence_needed": "Studies on digital learning tools, training program effectiveness, and educational outcomes.",
+                        "argument_development": "Highlight how digitization enhances learning experiences, provides access to new educational resources, and improves training efficiency."
+                    }
 
                     Sample Output: 
+
                     [
                         "Digital Learning Tools",
                         "Training Program Effectiveness",
@@ -290,12 +312,11 @@ flow:
                         "Educational Technology",
                         "Digital Transformation in Training"
                     ]
-                    Put the output between <query> and </query> tags.
 
-        # Extract the <query>{{query}}</query> from the generated response
-        extract_query:
+                    Put the output between <output> and </output> tags.
+        extract_keywords:
             action: extract_xml_tag
-            tag: query
+            tag: output
             text:
                 link: key_gen.result     
         retrieval:
@@ -314,83 +335,143 @@ flow:
                     for page in flow.extractor.pages
                     for paragraph in page.text.split('\n')]     
             query:
-                link: extract_query.result         
+                link: extract_keywords.result               
         reranking:
             action: rerank
-            k: 5
+            k: 3
             documents:
                 link: retrieval.result
             texts:
                 lambda: |
-                    [paragraph
-                    for paragraph in retrieval.result['text']]
+                    [paragraph.text
+                    for paragraph in retrieval.result]
             query:
-                link: extract_query.result
+                link: extract_keywords.result
         para_writer:
             action: prompt
             prompt:
                 - text: |
-                    You are in charge of writing a paragraph as part of a larger essay, focusing on {{message}}. Make Sure the paragraph you write is detailed and compelling. Write at least 200 words if not more. 
+                    You are in charge of writing a paragraph as part of a longer essay, focusing on {{message}}. Make Sure the paragraph you write is detailed and compelling. Write at least 200 words if not more. 
 
                     You are given the paragraph's structure and severals paragraphs in PDFs as important context. Use the context to fill in the structure to write a professional paragraph, including in-text citations to cite important facts or arguments from the sources. Make sure it is detailed and well-written to beat the Oxford standard.
 
                     For each in-text citation, use the provided page number, article name, and author's name. Additionally, generate references corresponding to the in-text citations.
 
-                    Paragraph: {{para_struct}}
+                    Paragraph Structure: {{para_struct}}
                     
-                    Below are provided in order for each paragraph of context:
+                    Below infomation are provided in order for each paragraph of the context:
 
                     titles: 
-                    {{retriveal.result['title']}}
+                    {% for paragraph in reranking.result %}
+                        {{paragraph.title}}
+                    {% endfor %}
 
                     page numbers:
-                    {{retriveal.result['page_num']}}
+                    {% for paragraph in reranking.result %}
+                        {{paragraph.page_num}}
+                    {% endfor %}
 
                     texts:
-                    {{retriveal.result['text']}}
-                    
+                    {% for paragraph in reranking.result %}
+                        {{paragraph.text}}
+                    {% endfor %}                   
+
+                    Output Structure:
+
+                    {"Paragraph": paragraph, "References": ["Reference 1", "Reference 2", ...]}
+
+                    Make sure to use in text citations in the following structure: (Åstebro, Thomas, and Samir Elhedhli, 2006, p.395)
+
                     Sample Output:
-                    {
-                        "Paragraph": "paragraph text",
-                        "References": [
-                            {
-                                "author": "author name",
-                                "article_name": "article name",
-                                "page_number": "page number",
-                                "citation": "citation text"
-                            },
-                            ...
-                        ]
-                    }
+
+                    {"Paragraph": "In evaluating the potential success of early-stage ventures, the application of simple decision heuristics has proven to be significantly effective. According to Åstebro and Elhedhli, these heuristics can streamline the decision-making process and enhance forecasting accuracy for commercial outcomes. Their study, published in Management Science, demonstrated that these straightforward methods often rival more complex analytical techniques in predicting venture success (Åstebro, Thomas, and Samir Elhedhli, 2006, p.395). This finding underscores the practical utility of heuristic-based approaches in the entrepreneurial ecosystem.", "References": ["Åstebro, Thomas, and Samir Elhedhli. “The Effectiveness of Simple Decision Heuristics: Forecasting Commercial Success for Early-Stage Ventures.” Management Science, vol. 52, no. 3, Mar. 2006, pp. 395-409, https://doi.org/10.1287/mnsc.1050.0468.", ...]}
+
+                    Make sure the output is in the correct json format:
+                    {"Paragraph": paragraph, "References": ["Reference 1", "Reference 2", ...]}
+
                     Put the output between <output> and </output> tags.
 
-        extract_output:
+        extract_paragraph:
             action: extract_xml_tag
             tag: output
             text:
                 link: para_writer.result
-        get_output_string:
+
+        get_para_output:
             action: load_json
             json_string: 
-                var: extract_output.result 
+                var: extract_paragraph.result
+
   essay1stdraft:
     action: create_string
     string: 
       text: |
-        {% for subflow in essay_writer %}        
-        {% for output_string in subflow.get_output_string %}
-            {{ output_string }}
+        Essay:
+
+        {% for flow in essay_writer %}        
+        {% for output in flow.get_para_output %}
+            {{ output}}
         {% endfor %}
         {% endfor %}
-  
+
+        References:
+
+        {% for flow in essay_writer %}        
+        {% for output in flow.get_para_output.json_object %}
+        {% for reference in output.References %}
+            {{ reference }}
+        {% endfor %}
+        {% endfor %}
+        {% endfor %}
+
   essayfinaliser:
     action: prompt
     prompt:
       - text: |
             You are an Oxford Professor. Your proud student has read a lot of reading to answer the question {{message}}. You have received his writing on each paragraph and the citations.
 
-            You will organize the writing by connecting the paragraphs together and put the references in the end as appendixes. You will take the third-party perspective to check any inconsistencies between the paragraphs and add smooth transitions. Make sure that the overall tone is professional, compelling, and consistent. 
+            You will organize the writing by connecting the paragraphs together and put the references in the end as appendixes. You will take the third-party perspective to check any inconsistencies between the paragraphs and add smooth transitions. Make sure that the overall tone is professional, compelling, and consistent. Please make sure to include the references in the end.
             
-            {{essay1stdraft.string}}
+            The first draft of the essay is as follows:
 
-default_output: essayfinaliser.result 
+            {{ essay1stdraft.string }}
+
+            Sample Output:
+
+                ### The Role of Technology in Modern Education
+
+                In recent years, technology has revolutionized various sectors, including education. The integration of digital tools into the classroom has transformed traditional teaching methods, providing new opportunities for interactive and personalized learning. This essay explores the impact of technology on modern education, examining its benefits, challenges, and future potential.
+
+                Technology enhances learning by providing students with access to a vast array of resources and information. Online platforms, such as educational websites, e-books, and academic databases, offer learners the ability to explore topics in greater depth and at their own pace. For instance, the use of Khan Academy allows students to receive customized tutoring in subjects like mathematics and science, catering to their individual learning needs and improving academic performance (Smith, 2020).
+
+                Moreover, digital tools facilitate collaborative learning, which is crucial for developing critical thinking and problem-solving skills. Interactive applications, such as Google Classroom and Microsoft Teams, enable students to work together on projects, share ideas, and receive real-time feedback from their teachers. These platforms not only foster a sense of community among learners but also prepare them for the collaborative nature of the modern workplace (Johnson, 2019).
+
+                However, the integration of technology in education also presents several challenges. One significant issue is the digital divide, where students from low-income families may lack access to necessary devices and internet connectivity. This disparity can exacerbate educational inequalities, leaving some students at a disadvantage. According to a study by the Pew Research Center, 15% of U.S. households with school-aged children do not have a high-speed internet connection at home (Parker, 2021).
+
+                Another concern is the potential for technology to distract students from their studies. The availability of social media, online games, and other non-educational content can divert students' attention, leading to decreased productivity and engagement. Educators must therefore implement strategies to manage and mitigate these distractions, ensuring that technology is used effectively to support learning objectives (Brown, 2018).
+
+                Despite these challenges, the future of technology in education appears promising. Innovations such as artificial intelligence (AI) and virtual reality (VR) hold the potential to further enhance the learning experience. AI can provide personalized learning paths based on students' strengths and weaknesses, while VR can create immersive educational environments that make complex concepts more tangible and understandable. These advancements promise to make education more accessible, engaging, and effective (Williams, 2022).
+
+                In conclusion, technology has significantly impacted modern education by providing new tools and resources that enhance learning and collaboration. While challenges such as the digital divide and potential distractions must be addressed, the future integration of advanced technologies like AI and VR offers exciting possibilities for the evolution of education. As we continue to embrace these innovations, it is essential to ensure that all students have the opportunity to benefit from the advantages they bring.
+
+                #### References
+
+                Brown, A. (2018). Managing Distractions in the Digital Classroom. *Journal of Educational Technology*, 12(3), 45-59.
+
+                Johnson, L. (2019). Collaborative Learning in the Digital Age. *Education Today*, 23(1), 67-82.
+
+                Parker, K. (2021). The Digital Divide in Education. *Pew Research Center*. Retrieved from https://www.pewresearch.org
+
+                Smith, J. (2020). Personalized Learning with Khan Academy. *Educational Review*, 18(2), 34-50.
+
+                Williams, M. (2022). The Future of AI and VR in Education. *Tech Innovations in Education*, 5(4), 78-95.
+
+            Put the final essay between <output> and </output> tags.
+
+  extract_final_essay:
+    action: extract_xml_tag
+    tag: output
+    text:
+        link: essayfinaliser.result   
+
+default_output: essay1stdraft.result 

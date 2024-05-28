@@ -4,6 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PDF Chatbot</title>
+    <style>
+        .markdown-output {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-top: 20px;
+            white-space: pre-wrap;
+            font-family: Arial, sans-serif;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -18,7 +28,7 @@
             <input type="text" name="question" id="question" required>
             <button type="submit">Ask</button>
         </form>
-        <div id="response"></div>
+        <div id="response" class="markdown-output"></div>
     </div>
     <script>
         document.getElementById('question-form').addEventListener('submit', async function(event) {
@@ -32,7 +42,7 @@
                 body: formData
             });
             const data = await response.json();
-            responseDiv.innerHTML = data.response;
+            responseDiv.innerHTML = marked(data.response);
         });
     </script>
 </body>
