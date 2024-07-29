@@ -1,8 +1,12 @@
 # Powerful AI agent for essay question answering and R&D automation
-
-![Uploading Screenshot 2024-07-30 at 12.29.49 AM.png…]()
-
 This is the first AI agent designed to assist in the brainstorming, structuring, and drafting of research thesis essays. It leverages advanced language models to generate sub-questions, outline essays, extract relevant information from PDFs, and refine the overall structure to produce a coherent and compelling thesis.
+
+Workflow: 
+<img width="941" alt="Screenshot 2024-07-30 at 12 48 31 am" src="https://github.com/user-attachments/assets/8c9d9ca5-db17-4272-b841-f870d15c5829">
+
+Demo: 
+![1251716856292_ pic](https://github.com/user-attachments/assets/35cae682-9af3-4aae-93fe-6873a3cc8b80)
+<img width="906" alt="image" src="https://github.com/user-attachments/assets/b73b92bf-9fcf-48b7-9831-21b34174d110">
 
 ## Features
 
